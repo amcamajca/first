@@ -42,7 +42,22 @@ public class Test {
         for (String station : nearbyStations) {
             System.out.println(station);
         }
+        // 测试获取所有路径的功能
+        String startStation = "华中科技大学";
+        String endStation = "中南路";
+        List<List<String>> allPaths = subwaySystem.getAllPaths(startStation, endStation);
+        System.out.println("All paths from " + startStation + " to " + endStation + ":");
+        for (List<String> path : allPaths) {
+            System.out.println(path);
+        }
 
+        subwaySystem.printShortestPath(startStation,endStation);
+        double fare1 = subwaySystem.calculateFare("Station A", "Station C");
+        double fare2 =subwaySystem.calculateFareWithWuhanTong(startStation,endStation);
+        double fare3 =subwaySystem.calculateFareWithDayPass(startStation,endStation,7);
+        System.out.println("Fare for the journey: " + fare1 + " yuan");
+        System.out.println("Fare for the journey: " + fare2+ " yuan");
+        System.out.println("Fare for the journey: " + fare3 + " yuan");
 
     }
 }
