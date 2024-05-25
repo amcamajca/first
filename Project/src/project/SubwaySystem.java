@@ -1,18 +1,49 @@
 package project;
-import java.io.File;
-import java.io.FileNotFoundException;
+import java.io.*;
 import java.util.*;
+
 
 public class SubwaySystem {
     private Map<String, Map<String, Double>> map = new HashMap<>();
-    private Map<String, List<String>> lines = new HashMap<>();
     private Scanner scanner = new Scanner(System.in);
+    private Map<String, List<String>> lines = new HashMap<>();
 
-    public SubwaySystem(String filename) throws FileNotFoundException {
-        readData(filename);
+    public SubwaySystem() {
+        this.map = new LinkedHashMap<>();
     }
 
-    private void readData(String filename) throws FileNotFoundException {
+    public SubwaySystem(String filename) throws FileNotFoundException {
+        readData2(filename);
+    }
+
+    public SubwaySystem readData1(String filename, SubwaySystem subwaySystem) {
+        try (BufferedReader br = new BufferedReader(new FileReader(filename))) {
+            String line;
+            String currentLine = null;
+            while ((line = br.readLine()) != null) {
+                if (line.contains("号线站点间距")) {
+                    currentLine = line.split("号线站点间距")[0];
+                    subwaySystem.addLine(currentLine);
+                } else if (line.contains("---") || line.contains("—")) {
+                    String separator = line.contains("---") ? "---" : "—";
+                    String[] parts = line.split(separator);
+                    String station1 = parts[0].trim();
+
+                    String station2 = parts[1].split("\t")[0].trim();
+                    double distance = Double.parseDouble(parts[1].split("\t")[1].trim());
+                    subwaySystem.addStation(currentLine, station1, distance);
+                    subwaySystem.addStation(currentLine, station2, distance);
+                }
+
+
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return subwaySystem;
+    }
+
+    private void readData2(String filename) throws FileNotFoundException {
         Scanner fileScanner = new Scanner(new File(filename));
         String currentLine = null;
 
@@ -41,87 +72,102 @@ public class SubwaySystem {
         map.get(from).put(to, distance);
     }
 
-    public void findTransferStations() {
-        System.out.println("所有中转站：");
 
-        for (String station : map.keySet()) {
-            if (linesContainMultiple(station)) {
-                System.out.println(station + ": " + getStationLines(station));
+    public void addLine(String lineName) {
+        map.put(lineName, new LinkedHashMap<>());
+    }
+
+    public void addStation(String lineName, String stationName, double distance) {
+        map.get(lineName).put(stationName, distance);
+    }
+
+
+
+    public Set<String> getTransferStations() {
+        Map<String, Set<String>> stationLines = new HashMap<>();
+        for (String line : map.keySet()) {
+            for (String station : map.get(line).keySet()) {
+                stationLines.putIfAbsent(station, new HashSet<>());
+                stationLines.get(station).add(line);
             }
         }
 
-        if (!hasTransferStations()) {
-            System.out.println("未找到任何中转站。");
-        }
-    }
-
-    private String getStationLines(String station) {
-        StringBuilder linesBuilder = new StringBuilder();
-        Set<String> stationLines = new HashSet<>();
-
-        for (String line : lines.keySet()) {
-            if (lines.get(line).contains(station)) {
-                stationLines.add(line);
+        Set<String> transferStations = new HashSet<>();
+        for (String station : stationLines.keySet()) {
+            if (stationLines.get(station).size() > 1) {
+                StringBuilder sb = new StringBuilder();
+                sb.append("<").append(station).append(", <");
+                for (String line : stationLines.get(station)) {
+                    sb.append(line).append(" 号线、");
+                }
+                sb.setLength(sb.length() - 1); // Remove the last comma
+                sb.append(">>");
+                transferStations.add(sb.toString());
             }
         }
 
-        for (String line : stationLines) {
-            linesBuilder.append(line).append(", ");
-        }
-
-        return linesBuilder.substring(0, linesBuilder.length() - 2); // Remove the trailing comma and space
+        return transferStations;
     }
 
-    private boolean hasTransferStations() {
-        for (String station : map.keySet()) {
-            if (linesContainMultiple(station)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean linesContainMultiple(String station) {
-        Set<String> stationLines = new HashSet<>();
-
-        for (String line : lines.keySet()) {
-            if (lines.get(line).contains(station)) {
-                stationLines.add(line);
-            }
-        }
-
-        return stationLines.size() > 1;
-    }
 
     @Override
     public String toString() {
         return this.map.values().toString();
     }
 
-    public Set<String> getNearbyStations(String stationName, double distanceThreshold) {
+
+
+
+    public Set<String> getStationsNearby(String stationName, double distance) {
         Set<String> nearbyStations = new HashSet<>();
 
-        for (String line : map.keySet()) {
-            Map<String, Double> stationsOnLine = map.get(line);
-            for (String station : stationsOnLine.keySet()) {
-                if (!station.equals(stationName)) {
-                    double distance = stationsOnLine.get(station);
-                    if (distance <= distanceThreshold) {
-                        StringBuilder sb = new StringBuilder();
-                        sb.append("<").append(station).append(", ")
-                                .append(line).append(" 号线, ").append(distance).append(">");
-                        nearbyStations.add(sb.toString());
-                    }
+        if (!map.containsKey(stationName)) {
+            System.out.println("输入的站点不存在！");
+            return nearbyStations;
+        }
+
+        Queue<String> queue = new LinkedList<>();
+        Map<String, Integer> distances = new HashMap<>();
+
+        queue.offer(stationName);
+        distances.put(stationName, 0);
+
+        while (!queue.isEmpty()) {
+            String currentStation = queue.poll();
+            int currentDistance = distances.get(currentStation);
+
+            if (currentDistance == distance) {
+                nearbyStations.add("<"+currentStation + ", " + getLineForStation(currentStation) + ", " + currentDistance+">");
+                continue;
+            }
+
+            Map<String, Double> neighbors = map.get(currentStation);
+            for (Map.Entry<String, Double> entry : neighbors.entrySet()) {
+                String neighborStation = entry.getKey();
+                if (!distances.containsKey(neighborStation) || distances.get(neighborStation) > currentDistance + 1) {
+                    queue.offer(neighborStation);
+                    distances.put(neighborStation, currentDistance + 1);
                 }
             }
         }
 
         return nearbyStations;
     }
+
+    private String getLineForStation(String stationName) {
+        for (Map.Entry<String, List<String>> entry : lines.entrySet()) {
+            if (entry.getValue().contains(stationName)) {
+                return entry.getKey().substring(0,3);
+            }
+        }
+        return "";
+    }
+
+
     public List<List<String>> getAllPaths(String startStation, String endStation) {
         List<List<String>> allPaths = new ArrayList<>();
         if (!map.containsKey(startStation) || !map.containsKey(endStation)) {
-            return allPaths; // Return empty list if start or end station is not found
+            return allPaths;
         }
         Set<String> visited = new HashSet<>();
         List<String> path = new ArrayList<>();
@@ -147,42 +193,6 @@ public class SubwaySystem {
         visited.remove(currentStation);
     }
 
-    // Other methods omitted for brevity
-
-
-    public void queryLineStations() {
-        System.out.print("请输入线路名称：");
-        String line = scanner.nextLine().trim();
-
-        if (lines.containsKey(line)) {
-            System.out.println("线路 " + line + " 包含的站点：");
-            for (String station : new HashSet<>(lines.get(line))) {
-                System.out.println(station);
-            }
-        } else {
-            System.out.println("未找到该线路。");
-        }
-    }
-    public void queryStationLines() {
-        System.out.print("请输入站点名称：");
-        String station = scanner.nextLine().trim();
-        Set<String> stationLines = new HashSet<>();
-
-        for (String line : lines.keySet()) {
-            if (lines.get(line).contains(station)) {
-                stationLines.add(line);
-            }
-        }
-
-        if (stationLines.isEmpty()) {
-            System.out.println("未找到该站点的相关线路。");
-        } else {
-            System.out.println("站点 " + station + " 所在的线路：");
-            for (String line : stationLines) {
-                System.out.println(line);
-            }
-        }
-    }
 
     public void findShortestPath() {
         System.out.print("请输入起点站：");
@@ -294,5 +304,6 @@ public class SubwaySystem {
         }
     }
 }
+
 
 
